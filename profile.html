@@ -1,0 +1,592 @@
+<!-- templates/profile.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-4">
+            <i class="fas fa-user-circle"></i> Профиль пользователя
+        </h1>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Левая колонка - информация о пользователе -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="position-relative d-inline-block mb-3">
+                    {% if user.avatar %}
+                    <img src="{{ url_for('static', filename=user.avatar) }}" 
+                         class="rounded-circle" width="150" height="150" 
+                         style="object-fit: cover; border: 3px solid var(--primary);">
+                    {% else %}
+                    <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto" 
+                         style="width: 150px; height: 150px; background: linear-gradient(45deg, var(--primary), var(--secondary));">
+                        <i class="fas fa-user fa-4x text-white"></i>
+                    </div>
+                    {% endif %}
+                    
+                    {% if user.telegram_verified %}
+                    <span class="position-absolute bottom-0 end-0 bg-success rounded-circle p-2" 
+                          style="width: 20px; height: 20px;" title="Telegram верифицирован">
+                        <i class="fas fa-check text-white" style="font-size: 12px;"></i>
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <h3 class="mb-1">{{ user.first_name or user.username or 'Пользователь' }}</h3>
+                {% if user.username %}
+                <p class="text-white-50 mb-2">@{{ user.username }}</p>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <span class="badge bg-primary me-1">
+                        <i class="fas fa-star"></i> Рейтинг: {{ user.get_rating() }}%
+                    </span>
+                    <span class="badge bg-success me-1">
+                        <i class="fas fa-check-circle"></i> 
+                        {{ 'Верифицирован' if user.is_verified else 'Не верифицирован' }}
+                    </span>
+                </div>
+                
+                {% if user.bio %}
+                <p class="text-white-50 mb-3">{{ user.bio }}</p>
+                {% endif %}
+                
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" onclick="editProfile()">
+                        <i class="fas fa-edit"></i> Редактировать профиль
+                    </button>
+                    <button class="btn btn-outline-success" onclick="showDepositModal()">
+                        <i class="fas fa-plus-circle"></i> Пополнить баланс
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card-footer border-secondary">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="text-white-50 small">На платформе</div>
+                        <div class="h5 mb-0">{{ stats.days_on_platform }} дней</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-white-50 small">Последний вход</div>
+                        <div class="h5 mb-0">{{ user.last_active.strftime('%d.%m.%Y') if user.last_active else 'Сегодня' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Кошелек -->
+        <div class="card mt-4">
+            <div class="card-header border-secondary">
+                <h5 class="mb-0"><i class="fas fa-wallet"></i> Кошелек</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span>Telegram Stars</span>
+                    <span class="badge-stars">
+                        <i class="fas fa-star"></i> {{ user.balance_stars }}
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span>Рубли</span>
+                    <span class="badge bg-success">
+                        <i class="fas fa-ruble-sign"></i> {{ user.balance_rub }}
+                    </span>
+                </div>
+                
+                {% if user.wallet_address %}
+                <hr class="bg-secondary">
+                <div class="small">
+                    <div class="text-white-50 mb-1">Tron кошелек</div>
+                    <code>{{ user.wallet_address[:10] }}...{{ user.wallet_address[-8:] }}</code>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Реферальная программа -->
+        <div class="card mt-4">
+            <div class="card-header border-secondary">
+                <h5 class="mb-0"><i class="fas fa-users"></i> Реферальная программа</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-white-50">Приглашайте друзей и получайте 5% от их покупок!</p>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="referralLink" readonly 
+                           value="https://t.me/NFTMarketBot?start=ref_{{ user.referral_code }}">
+                    <button class="btn btn-primary" type="button" onclick="copyReferralLink()">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>Приглашено:</span>
+                    <span class="badge bg-primary">{{ stats.referrals_count or 0 }}</span>
+                </div>
+                <div class="d-flex justify-content-between mt-2">
+                    <span>Заработано:</span>
+                    <span class="badge-stars">{{ stats.referral_earnings or 0 }} ⭐️</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Правая колонка - статистика и активность -->
+    <div class="col-md-8">
+        <!-- Статистика -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <i class="fas fa-cubes fa-2x text-primary mb-2"></i>
+                    <div class="stats-number">{{ stats.total_nfts }}</div>
+                    <div class="stats-label">Всего NFT</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <i class="fas fa-shopping-cart fa-2x text-success mb-2"></i>
+                    <div class="stats-number">{{ stats.sold_nfts }}</div>
+                    <div class="stats-label">Продано</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                    <div class="stats-number">{{ stats.earned_stars }}</div>
+                    <div class="stats-label">Заработано ⭐️</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Вкладки -->
+        <ul class="nav nav-tabs border-secondary mb-4" id="profileTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active bg-transparent text-white border-secondary" 
+                        id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" 
+                        type="button" role="tab">
+                    <i class="fas fa-chart-bar"></i> Активность
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link bg-transparent text-white border-secondary" 
+                        id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions" 
+                        type="button" role="tab">
+                    <i class="fas fa-history"></i> Транзакции
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link bg-transparent text-white border-secondary" 
+                        id="nfts-tab" data-bs-toggle="tab" data-bs-target="#nfts" 
+                        type="button" role="tab">
+                    <i class="fas fa-cube"></i> Мои NFT
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link bg-transparent text-white border-secondary" 
+                        id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" 
+                        type="button" role="tab">
+                    <i class="fas fa-cog"></i> Настройки
+                </button>
+            </li>
+        </ul>
+        
+        <!-- Содержимое вкладок -->
+        <div class="tab-content" id="profileTabsContent">
+            <!-- Вкладка активности -->
+            <div class="tab-pane fade show active" id="activity" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <div id="activityChart"></div>
+                    </div>
+                </div>
+                
+                <!-- Последние действия -->
+                <div class="card mt-4">
+                    <div class="card-header border-secondary">
+                        <h5 class="mb-0">Последние действия</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            {% for t in transactions[:5] %}
+                            <div class="d-flex mb-3">
+                                <div class="me-3">
+                                    {% if t.type == 'Покупка' %}
+                                    <span class="badge bg-success rounded-circle p-2">
+                                        <i class="fas fa-shopping-cart"></i>
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-primary rounded-circle p-2">
+                                        <i class="fas fa-tag"></i>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <div class="fw-bold">{{ t.type }} NFT "{{ t.nft_name }}"</div>
+                                    <small class="text-white-50">{{ t.date }}</small>
+                                </div>
+                                <div class="ms-auto">
+                                    <span class="badge-stars">{{ t.amount }} ⭐️</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Вкладка транзакций -->
+            <div class="tab-pane fade" id="transactions" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Дата</th>
+                                        <th>Тип</th>
+                                        <th>NFT</th>
+                                        <th>Сумма</th>
+                                        <th>Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactionsTable">
+                                    {% for t in transactions %}
+                                    <tr>
+                                        <td>{{ t.date }}</td>
+                                        <td>
+                                            {% if t.type == 'Покупка' %}
+                                            <span class="badge bg-success">Покупка</span>
+                                            {% else %}
+                                            <span class="badge bg-primary">Продажа</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ t.nft_name }}</td>
+                                        <td><span class="badge-stars">{{ t.amount }}</span></td>
+                                        <td>
+                                            {% if t.status == 'completed' %}
+                                            <span class="badge bg-success">Завершено</span>
+                                            {% else %}
+                                            <span class="badge bg-warning">В обработке</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        {% if transactions|length == 0 %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-exchange-alt fa-3x text-secondary mb-3"></i>
+                            <h5>Нет транзакций</h5>
+                            <p class="text-white-50">Совершите первую покупку в маркете</p>
+                            <a href="/market" class="btn btn-primary">Перейти в маркет</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Вкладка моих NFT -->
+            <div class="tab-pane fade" id="nfts" role="tabpanel">
+                <div class="row">
+                    {% for nft in user.nfts %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="row g-0">
+                                <div class="col-md-4">
+                                    {% if nft.file_type in ['photo', 'image'] %}
+                                    <img src="{{ url_for('static', filename='uploads/' + nft.file_path.split('/')[-1]) }}" 
+                                         class="img-fluid rounded-start" style="height: 100%; object-fit: cover;">
+                                    {% else %}
+                                    <div class="bg-secondary h-100 d-flex align-items-center justify-content-center">
+                                        <i class="fas fa-file fa-2x"></i>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-8">
+                                    <div class="card-body">
+                                        <h6 class="card-title">{{ nft.title or nft.file_name[:30] }}</h6>
+                                        <p class="card-text">
+                                            <small class="text-white-50">
+                                                Статус: 
+                                                {% if nft.status == 'for_sale' %}
+                                                <span class="badge bg-success">В продаже</span>
+                                                {% elif nft.status == 'sold' %}
+                                                <span class="badge bg-secondary">Продан</span>
+                                                {% else %}
+                                                <span class="badge bg-info">В инвентаре</span>
+                                                {% endif %}
+                                            </small>
+                                        </p>
+                                        {% if nft.price %}
+                                        <p class="card-text">
+                                            <small class="badge-stars">{{ nft.price }} ⭐️</small>
+                                        </p>
+                                        {% endif %}
+                                        <a href="/nft/{{ nft.id }}" class="btn btn-sm btn-outline-primary">
+                                            Подробнее
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Вкладка настроек -->
+            <div class="tab-pane fade" id="settings" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <form id="settingsForm">
+                            <h5 class="mb-3">Основные настройки</h5>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Имя пользователя</label>
+                                <input type="text" class="form-control" name="username" 
+                                       value="{{ user.username or '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">О себе</label>
+                                <textarea class="form-control" name="bio" rows="3">{{ user.bio or '' }}</textarea>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Tron кошелек (для вывода)</label>
+                                <input type="text" class="form-control" name="wallet_address" 
+                                       value="{{ user.wallet_address or '' }}">
+                            </div>
+                            
+                            <hr class="bg-secondary">
+                            
+                            <h5 class="mb-3">Уведомления</h5>
+                            
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="emailNotifications" 
+                                       {% if user.settings and user.settings.email_notifications %}checked{% endif %}>
+                                <label class="form-check-label" for="emailNotifications">
+                                    Email уведомления
+                                </label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="telegramNotifications"
+                                       {% if user.settings and user.settings.telegram_notifications %}checked{% endif %}>
+                                <label class="form-check-label" for="telegramNotifications">
+                                    Telegram уведомления
+                                </label>
+                            </div>
+                            
+                            <hr class="bg-secondary">
+                            
+                            <h5 class="mb-3">Безопасность</h5>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="twoFactorAuth"
+                                       {% if user.settings and user.settings.two_factor_auth %}checked{% endif %}>
+                                <label class="form-check-label" for="twoFactorAuth">
+                                    Двухфакторная аутентификация
+                                </label>
+                            </div>
+                            
+                            <button type="button" class="btn btn-primary" onclick="saveSettings()">
+                                Сохранить настройки
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Опасная зона -->
+                <div class="card mt-4 border-danger">
+                    <div class="card-header bg-danger bg-opacity-25 border-danger">
+                        <h5 class="mb-0 text-danger">Опасная зона</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-white-50">Эти действия необратимы. Будьте осторожны!</p>
+                        
+                        <button class="btn btn-outline-danger" onclick="exportData()">
+                            <i class="fas fa-download"></i> Экспорт данных
+                        </button>
+                        
+                        <button class="btn btn-danger ms-2" onclick="deleteAccount()">
+                            <i class="fas fa-trash"></i> Удалить аккаунт
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно пополнения -->
+<div class="modal fade" id="depositModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Пополнение баланса</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Выберите сумму</label>
+                    <div class="btn-group w-100 mb-3" role="group">
+                        <button type="button" class="btn btn-outline-primary" onclick="setAmount(100)">100 ⭐️</button>
+                        <button type="button" class="btn btn-outline-primary" onclick="setAmount(500)">500 ⭐️</button>
+                        <button type="button" class="btn btn-outline-primary" onclick="setAmount(1000)">1000 ⭐️</button>
+                        <button type="button" class="btn btn-outline-primary" onclick="setAmount(5000)">5000 ⭐️</button>
+                    </div>
+                    
+                    <label class="form-label">Или укажите свою сумму</label>
+                    <input type="number" class="form-control" id="customAmount" min="1" placeholder="Сумма в Stars">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Способ оплаты</label>
+                    <select class="form-select bg-dark text-white border-secondary" id="paymentMethod">
+                        <option value="stars">Telegram Stars</option>
+                        <option value="card">Банковская карта</option>
+                        <option value="crypto">Криптовалюта</option>
+                    </select>
+                </div>
+                
+                <div class="alert alert-info" id="amountInfo">
+                    К оплате: <span id="totalAmount">0</span> ⭐️
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="processDeposit()">Пополнить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+let activityChart = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Загружаем график активности
+    fetch('/api/profile/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.activity_chart) {
+                Plotly.newPlot('activityChart', JSON.parse(data.activity_chart));
+            }
+        });
+});
+
+function editProfile() {
+    window.location.href = '/profile/edit';
+}
+
+function showDepositModal() {
+    new bootstrap.Modal(document.getElementById('depositModal')).show();
+}
+
+function setAmount(amount) {
+    document.getElementById('customAmount').value = amount;
+    document.getElementById('totalAmount').textContent = amount;
+}
+
+function processDeposit() {
+    const amount = document.getElementById('customAmount').value;
+    const method = document.getElementById('paymentMethod').value;
+    
+    if (!amount || amount < 1) {
+        alert('Введите корректную сумму');
+        return;
+    }
+    
+    fetch('/api/deposit', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            amount: parseInt(amount),
+            method: method
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.payment_link) {
+            window.open(data.payment_link, '_blank');
+        } else {
+            alert('Ошибка при создании платежа');
+        }
+    });
+}
+
+function copyReferralLink() {
+    const link = document.getElementById('referralLink');
+    link.select();
+    document.execCommand('copy');
+    alert('Ссылка скопирована!');
+}
+
+function saveSettings() {
+    const formData = new FormData(document.getElementById('settingsForm'));
+    
+    fetch('/profile/edit', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Настройки сохранены');
+            location.reload();
+        } else {
+            alert('Ошибка: ' + data.error);
+        }
+    });
+}
+
+function exportData() {
+    window.location.href = '/api/profile/export';
+}
+
+function deleteAccount() {
+    if (confirm('Вы уверены? Это действие необратимо!')) {
+        fetch('/api/profile/delete', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '/logout';
+            }
+        });
+    }
+}
+
+// Обновление статистики в реальном времени
+function refreshStats() {
+    fetch('/api/profile/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Обновляем отображение статистики
+                const stats = data.stats;
+                document.querySelectorAll('[data-stat]').forEach(el => {
+                    const stat = el.dataset.stat;
+                    if (stats[stat] !== undefined) {
+                        el.textContent = stats[stat];
+                    }
+                });
+            }
+        });
+}
+
+// Периодическое обновление
+setInterval(refreshStats, 30000);
+</script>
+{% endblock %}
+{% endblock %}

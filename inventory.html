@@ -1,0 +1,227 @@
+<!-- templates/inventory.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-4">
+            <i class="fas fa-box"></i> Мой инвентарь
+        </h1>
+        <p class="lead">Ваши NFT и активы</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stats-card">
+            <i class="fas fa-cubes fa-2x text-primary mb-2"></i>
+            <div class="stats-number">{{ nfts|length }}</div>
+            <div class="text-white-50">Всего NFT</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <i class="fas fa-star fa-2x text-warning mb-2"></i>
+            <div class="stats-number">{{ current_user.balance_stars }}</div>
+            <div class="text-white-50">Баланс ⭐️</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <i class="fas fa-chart-line fa-2x text-success mb-2"></i>
+            <div class="stats-number" id="totalValue">0</div>
+            <div class="text-white-50">Общая стоимость</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <i class="fas fa-clock fa-2x text-info mb-2"></i>
+            <div class="stats-number" id="avgPrice">0</div>
+            <div class="text-white-50">Средняя цена</div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Быстрые действия</h5>
+                <button class="btn btn-primary me-2" onclick="showTransferMenu()">
+                    <i class="fas fa-paper-plane"></i> Передать NFT
+                </button>
+                <button class="btn btn-success" onclick="showSellMenu()">
+                    <i class="fas fa-tag"></i> Выставить на продажу
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% if nfts %}
+        {% for nft in nfts %}
+        <div class="col-md-4 col-lg-3 mb-4">
+            <div class="card h-100">
+                {% if nft.file_type in ['photo', 'image'] %}
+                <img src="{{ url_for('static', filename='uploads/' + nft.file_path.split('/')[-1]) }}" 
+                     class="card-img-top nft-image" alt="{{ nft.title }}">
+                {% else %}
+                <div class="nft-image d-flex align-items-center justify-content-center">
+                    <i class="fas fa-file fa-3x text-secondary"></i>
+                </div>
+                {% endif %}
+                
+                <div class="card-body">
+                    <h5 class="card-title">{{ nft.title or nft.file_name[:30] }}</h5>
+                    
+                    <div class="mb-2">
+                        {% if nft.status == 'for_sale' %}
+                        <span class="badge bg-success">В продаже</span>
+                        <span class="badge-stars">
+                            <i class="fas fa-star"></i> {{ nft.price }}
+                        </span>
+                        {% else %}
+                        <span class="badge bg-secondary">В инвентаре</span>
+                        {% endif %}
+                    </div>
+                    
+                    <hr class="bg-secondary">
+                    
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewNFT({{ nft.id }})">
+                            <i class="fas fa-info-circle"></i> Детали
+                        </button>
+                        
+                        {% if nft.status != 'for_sale' %}
+                        <button class="btn btn-sm btn-outline-success" onclick="sellNFT({{ nft.id }})">
+                            <i class="fas fa-tag"></i> Продать
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning" onclick="transferNFT({{ nft.id }})">
+                            <i class="fas fa-paper-plane"></i> Передать
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="col-12">
+        <div class="text-center py-5">
+            <i class="fas fa-box-open fa-4x text-secondary mb-3"></i>
+            <h3>Инвентарь пуст</h3>
+            <p class="text-white-50">Купите NFT в маркете или отправьте боту чтобы пополнить инвентарь</p>
+            <a href="/market" class="btn btn-primary">
+                <i class="fas fa-store"></i> Перейти в маркет
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Модальное окно передачи NFT -->
+<div class="modal fade" id="transferModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Передача NFT</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="transferForm">
+                    <div class="mb-3">
+                        <label class="form-label">Username получателя</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" 
+                               id="recipientUsername" placeholder="@username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">NFT ID</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" 
+                               id="nftId" readonly>
+                    </div>
+                </form>
+                <div id="transferResult" class="mt-3"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" onclick="processTransfer()">Передать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+let transferNFTId = null;
+
+function viewNFT(nftId) {
+    window.location.href = `/nft/${nftId}`;
+}
+
+function sellNFT(nftId) {
+    window.location.href = `/sell/${nftId}`;
+}
+
+function transferNFT(nftId) {
+    transferNFTId = nftId;
+    document.getElementById('nftId').value = nftId;
+    new bootstrap.Modal(document.getElementById('transferModal')).show();
+}
+
+function processTransfer() {
+    const username = document.getElementById('recipientUsername').value.replace('@', '');
+    
+    fetch('/api/transfer', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            nft_id: transferNFTId,
+            to_username: username
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('transferResult').innerHTML = `
+                <div class="alert alert-success">
+                    <h5>✅ Код создан!</h5>
+                    <p>Код передачи: <strong>${data.transfer_code}</strong></p>
+                    <p>Отправьте этот код получателю. Он должен ввести его в боте @NFTReceiverBot</p>
+                </div>
+            `;
+        } else {
+            document.getElementById('transferResult').innerHTML = `
+                <div class="alert alert-danger">
+                    ❌ Ошибка: ${data.error}
+                </div>
+            `;
+        }
+    });
+}
+
+function showTransferMenu() {
+    // Показываем меню передачи
+}
+
+function showSellMenu() {
+    // Показываем меню продажи
+}
+
+// Расчет статистики
+document.addEventListener('DOMContentLoaded', function() {
+    const nfts = {{ nfts|tojson }};
+    
+    if (nfts.length > 0) {
+        const total = nfts.reduce((sum, nft) => sum + (nft.price || 0), 0);
+        const avg = total / nfts.length;
+        
+        document.getElementById('totalValue').textContent = total + ' ⭐️';
+        document.getElementById('avgPrice').textContent = Math.round(avg) + ' ⭐️';
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

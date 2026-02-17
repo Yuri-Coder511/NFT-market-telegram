@@ -1,0 +1,162 @@
+<!-- templates/market.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-4">
+            <i class="fas fa-store"></i> Маркет NFT
+        </h1>
+        <p class="lead">Покупайте уникальные NFT за Telegram Stars</p>
+    </div>
+</div>
+
+<div class="row">
+    {% for nft in nfts.items %}
+    <div class="col-md-4 col-lg-3 mb-4">
+        <div class="card h-100">
+            {% if nft.file_type in ['photo', 'image'] %}
+            <img src="{{ url_for('static', filename='uploads/' + nft.file_path.split('/')[-1]) }}" 
+                 class="card-img-top nft-image" alt="{{ nft.title }}">
+            {% else %}
+            <div class="nft-image d-flex align-items-center justify-content-center">
+                <i class="fas fa-file fa-3x text-secondary"></i>
+            </div>
+            {% endif %}
+            
+            <div class="card-body">
+                <h5 class="card-title">{{ nft.title or nft.file_name[:30] }}</h5>
+                <p class="card-text text-white-50">
+                    {{ nft.description[:50] + '...' if nft.description else 'Нет описания' }}
+                </p>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge-stars">
+                        <i class="fas fa-star"></i> {{ nft.price }}
+                    </span>
+                    <small class="text-white-50">
+                        <i class="fas fa-eye"></i> {{ nft.views }}
+                    </small>
+                </div>
+                
+                <hr class="bg-secondary">
+                
+                <div class="d-flex justify-content-between">
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewNFT({{ nft.id }})">
+                        <i class="fas fa-info-circle"></i> Детали
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="buyNFT({{ nft.id }})">
+                        <i class="fas fa-shopping-cart"></i> Купить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Пагинация -->
+{% if nfts.pages > 1 %}
+<nav aria-label="Page navigation" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if nfts.has_prev %}
+        <li class="page-item">
+            <a class="page-link bg-dark text-white border-secondary" href="{{ url_for('market', page=nfts.prev_num) }}">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+        
+        {% for page_num in nfts.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+                <li class="page-item {% if page_num == nfts.page %}active{% endif %}">
+                    <a class="page-link bg-dark text-white border-secondary" href="{{ url_for('market', page=page_num) }}">
+                        {{ page_num }}
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link bg-dark text-white-50 border-secondary">...</span>
+                </li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if nfts.has_next %}
+        <li class="page-item">
+            <a class="page-link bg-dark text-white border-secondary" href="{{ url_for('market', page=nfts.next_num) }}">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Модальное окно покупки -->
+<div class="modal fade" id="buyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Подтверждение покупки</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите купить этот NFT?</p>
+                <div id="nft-details"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="confirmPurchase()">Подтвердить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+let currentNFTId = null;
+
+function viewNFT(nftId) {
+    window.location.href = `/nft/${nftId}`;
+}
+
+function buyNFT(nftId) {
+    currentNFTId = nftId;
+    
+    // Загружаем детали NFT
+    fetch(`/api/nft/${nftId}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('nft-details').innerHTML = `
+                <p><strong>Название:</strong> ${data.title || data.file_name}</p>
+                <p><strong>Цена:</strong> ${data.price} ⭐️</p>
+                <p><strong>Продавец:</strong> @${data.seller_username || 'Аноним'}</p>
+            `;
+            
+            new bootstrap.Modal(document.getElementById('buyModal')).show();
+        });
+}
+
+function confirmPurchase() {
+    fetch(`/api/buy/${currentNFTId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Покупка успешно завершена!');
+            location.reload();
+        } else {
+            alert('❌ Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('❌ Произошла ошибка');
+    });
+}
+</script>
+{% endblock %}
+{% endblock %}
